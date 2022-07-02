@@ -136,7 +136,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<bool> _cleanDataDir() async {
-    var appDir = await _getAppDir();
+    final appDir = await _getAppDir();
 
     if (appDir == null) return true;
 
@@ -177,19 +177,85 @@ class _HomePageState extends State<HomePage> {
     return true;
   }
 
-  Future<bool> _copyModFiles(FileSystemEntity item) async {
-    String curItemName = item.path.split("/").last;
+  Future<Map<String, Directory>> _getExistingAppDirs() async {
+    final appDir = await _getAppDir();
+    if (appDir == null) return {};
 
-    if (item is File) {
-      return true;
+    final tmpDir = Directory("${appDir.path}/tmp");
+
+    // these are the main directories we'll be working with
+    final directories = {
+      'apk': Directory("${tmpDir.path}/apk"),
+      'mod': Directory("${tmpDir.path}/mod"),
+    };
+
+    for (Directory dir in directories.values) {
+      final exists = await dir.exists();
+      if (!exists) return {};
     }
 
-    if (item is Directory) {
-      if (curItemName == "x-game") {
-        // todo don't copy current folder, only everything inside of it!!
+    return directories;
+  }
+
+  Future<void> _copyDir(Directory dir, String location) async {
+    for (FileSystemEntity item in dir.listSync()) {
+      String moverName = item.path.split("/").last;
+      String movedName = "$location/$moverName";
+
+      if (item is File) {
+        await File(movedName).create();
+        item.copy(movedName);
+        continue;
       }
 
-      return true;
+      if (item is Directory) {
+        bool xGameFound = false;
+        List<String> newMovedNameList = [];
+        // remove x-game from path if it already exists in path
+        for (String loc in movedName.split("/")) {
+          if (loc == "x-game") {
+            if (xGameFound) {
+              continue;
+            } else {
+              xGameFound = true;
+            }
+          }
+
+          newMovedNameList.add(loc);
+        }
+
+        String newMovedName = newMovedNameList.join("/");
+
+        if (item.path.split("/").last == "x-game") {
+          await _copyDir(item, newMovedName);
+        } else {
+          await Directory(newMovedName).create();
+          await _copyDir(item, newMovedName);
+        }
+      }
+    }
+  }
+
+  Future<bool> _applyModFiles() async {
+    Map<String, Directory> dirs = await _getExistingAppDirs();
+
+    if (dirs.isEmpty) return false;
+
+    Directory? apkDir = dirs["apk"];
+    Directory? modDir = dirs["mod"];
+
+    if (apkDir == null || modDir == null) return false;
+
+    Directory apkGameDir =
+        await Directory("${apkDir.path}/assets/x-game").create(recursive: true);
+
+    List<Directory> modDirs = [];
+    for (FileSystemEntity mod in modDir.listSync()) {
+      if (mod is Directory) modDirs.add(mod);
+    }
+
+    for (Directory mod in modDirs) {
+      await _copyDir(mod, apkGameDir.path);
     }
 
     // not sure if I should really be returning true here...
@@ -231,12 +297,27 @@ class _HomePageState extends State<HomePage> {
     print("APK extracted");
 
     print("Start renaming mods");
-    for (FileSystemEntity mod in extractedModsDir.listSync()) {
-      bool renameSuccess = await _recursiveRename(mod);
+    List<Directory> modDirs = [];
 
-      if (!renameSuccess) return;
+    for (FileSystemEntity mod in extractedModsDir.listSync()) {
+      if (mod is Directory) modDirs.add(mod);
     }
+
+    for (Directory mod in modDirs) {
+      for (FileSystemEntity dir in mod.listSync()) {
+        bool renameSuccess = await _recursiveRename(dir);
+
+        if (!renameSuccess) return;
+      }
+    }
+
     print("Mod renaming complete");
+
+    bool applyModSuccess = await _applyModFiles();
+
+    if (!applyModSuccess) return;
+
+    print("Mods successfully copied");
   }
 
   // NOTE: when releasing the app, make sure to follow the below setup!!!!
