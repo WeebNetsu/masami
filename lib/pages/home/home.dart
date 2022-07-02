@@ -65,39 +65,40 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  Future<File?> _saveFilePermanently(PlatformFile file,
-      [String? newFileName]) async {
+  Future<Directory?> _getAppDir() async {
     var dirs = await getExternalStorageDirectories();
     if (dirs == null || dirs.isEmpty) return null;
 
-    var saveDir = dirs[0];
-    print("Save Dir: ${saveDir.path}");
+    return dirs[0];
+  }
 
-    final newFile = File("${saveDir.path}/${newFileName ?? file.name}");
+  Future<File?> _saveFilePermanently(PlatformFile file,
+      [String? newFileName]) async {
+    var appDir = await _getAppDir();
+
+    if (appDir == null) return null;
+
+    final newFile = await File("${appDir.path}/tmp/${newFileName ?? file.name}")
+        .create(recursive: true);
 
     return File(file.path!).copy(newFile.path);
   }
 
-  Future<void> _extractZip() async {
-    if (_selectedAPK == null || _selectedAPK?.path == null) return;
-
-    // print("appStorage: ${appStorage.path}");
+  Future<bool> _extractZip(
+      PlatformFile originalFile, String newFileName) async {
     // below gives similar to /data/user/0/com.weebnetsu.masami/app_flutter
     // below will rename the file and save it in our app directory
-    var f = await _saveFilePermanently(_selectedAPK!, "mas.zip");
+    var extractFile = await _saveFilePermanently(originalFile, newFileName);
 
-    if (f == null) {
-      print("!!!! SAVE FILE WAS NOT SUCCESSFUL !!!!");
-      return;
-    }
+    if (extractFile == null) return false;
 
     // Use an InputFileStream to access the zip file without storing it in memory.
-    final inputStream = InputFileStream(f.path);
+    final inputStream = InputFileStream(extractFile.path);
     // Decode the zip from the InputFileStream. The archive will have the contents of the
     // zip, without having stored the data in memory.
     final archive = ZipDecoder().decodeBuffer(inputStream);
     // final appStorage = await getApplicationDocumentsDirectory()
-    // await extractFileToDisk(_selectedAPK!.path!, '${appStorage.path}/mod');
+    // await extractFileToDisk(originalFile!.path!, '${appStorage.path}/mod');
     for (var file in archive.files) {
       // If it's a file and not a directory
       if (file.isFile) {
@@ -105,7 +106,8 @@ class _HomePageState extends State<HomePage> {
         // In practice, you should make sure file.name doesn't include '..' paths
         // that would put it outside of the extraction directory.
         // An OutputFileStream will write the data to disk.
-        final outputStream = OutputFileStream('${f.parent.path}/${file.name}');
+        final outputStream =
+            OutputFileStream('${extractFile.parent.path}/${file.name}');
         // The writeContent method will decompress the file content directly to disk without
         // storing the decompressed data in memory.
         file.writeContent(outputStream);
@@ -113,10 +115,39 @@ class _HomePageState extends State<HomePage> {
         outputStream.close();
       }
     }
+
+    await extractFile.delete(recursive: true);
+
+    return true;
   }
 
   Future<void> _addMod() async {
-    await _extractZip();
+    // Directory? appDir = await _getAppDir();
+    // // todo show error instead of returning immediately
+    // if(appDir == null) return;
+
+    // todo show error instead of returning immediately
+    if (_selectedAPK == null) return;
+    print("Started with modding");
+
+    var apkExtracted = await _extractZip(_selectedAPK!, "apk/mas.zip");
+
+    // todo show error instead
+    if (!apkExtracted) return;
+    print("APK extracted");
+
+    if (_selectedMods.isEmpty) return;
+
+    print(_selectedMods);
+
+    for (var file in _selectedMods) {
+      var modExtracted = await _extractZip(file, "mod/${file.name}");
+
+      if (!modExtracted) return;
+      print("${file.name} extracted");
+    }
+
+    print("Files extracted");
   }
 
   // NOTE: when releasing the app, make sure to follow the below setup!!!!
@@ -214,9 +245,8 @@ class _HomePageState extends State<HomePage> {
         break;
       case 1: // if selecting mods
         // todo: uncomment below, it was just commented out for testing
-        // if (_selectedMods.isNotEmpty) return details.onStepContinue;
-        // break;
-        return details.onStepContinue;
+        if (_selectedMods.isNotEmpty) return details.onStepContinue;
+        break;
       default:
         return null;
     }
