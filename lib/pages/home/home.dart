@@ -17,9 +17,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentStep = 0;
-  PlatformFile? _selectedAPK = null;
+  PlatformFile? _selectedAPK;
   List<PlatformFile> _selectedMods = [];
 
+  /// Will open the file picker to select an APK.\
   void _selectAPK() async {
     // below video contains a lot of useful tips!! Such as
     // https://youtu.be/LlO5jydXws0
@@ -52,6 +53,7 @@ class _HomePageState extends State<HomePage> {
     // print("Path: ${file.path}");
   }
 
+  /// Will open the file picker to select the MODS. All mods has to be of type .zip
   void _selectMods() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
@@ -66,6 +68,8 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  /// Get application directory in Android folder, similar to
+  /// /data/user/0/com.weebnetsu.masami/app_flutter
   Future<Directory?> _getAppDir() async {
     var dirs = await getExternalStorageDirectories();
     if (dirs == null || dirs.isEmpty) return null;
@@ -80,12 +84,15 @@ class _HomePageState extends State<HomePage> {
     return await file.rename(newPath);
   }
 
+  /// Will rename a folder
   Future<Directory> _renameFolder(String newName, Directory folder) async {
     String dir = path.dirname(folder.path);
     String newPath = path.join(dir, newName);
     return await folder.rename(newPath);
   }
 
+  /// Get directories required by app, if one of the directories are not found, will
+  /// return an empty Map
   Future<Map<String, Directory>> _getExistingAppDirs() async {
     final appDir = await _getAppDir();
     if (appDir == null) return {};
@@ -107,6 +114,8 @@ class _HomePageState extends State<HomePage> {
     return directories;
   }
 
+  /// This will save a file in the /data/user/0/com.weebnetsu.masami/ directory, this
+  /// will copy the file from the cache directory if it is there. Returns the new `File`
   Future<File?> _saveFilePermanently(PlatformFile file,
       [String? newFileName]) async {
     var appDir = await _getAppDir();
@@ -119,6 +128,7 @@ class _HomePageState extends State<HomePage> {
     return File(file.path!).copy(newFile.path);
   }
 
+  /// Extracts a .zip file and returns the **parent** directory of the extracted file
   Future<Directory?> _extractZip(
       PlatformFile originalFile, String newFileName) async {
     // below gives similar to /data/user/0/com.weebnetsu.masami/app_flutter
@@ -156,6 +166,7 @@ class _HomePageState extends State<HomePage> {
     return extractFile.parent;
   }
 
+  /// Will compress the APK files into a .zip file
   Future<File?> _createMASZip() async {
     Map<String, Directory> dirs = await _getExistingAppDirs();
 
@@ -179,6 +190,7 @@ class _HomePageState extends State<HomePage> {
     return zipFile;
   }
 
+  /// Will delete all files and folders in the /tmp directory in our app directory
   Future<bool> _cleanDataDir() async {
     final appDir = await _getAppDir();
 
@@ -199,6 +211,7 @@ class _HomePageState extends State<HomePage> {
     return true;
   }
 
+  /// Will rename all files and folders in File or Directory passed in
   Future<bool> _recursiveRename(FileSystemEntity item) async {
     String curItemName = item.path.split("/").last;
 
@@ -221,6 +234,9 @@ class _HomePageState extends State<HomePage> {
     return true;
   }
 
+  /// This will copy a directory and all items inside it to designated location
+  ///
+  /// Will not copy duplicates of directories called **x-game**
   Future<void> _copyDir(Directory dir, String location) async {
     for (FileSystemEntity item in dir.listSync()) {
       String moverName = item.path.split("/").last;
@@ -260,6 +276,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  /// Copy all mod files to extracted APK directory
   Future<bool> _applyModFiles() async {
     Map<String, Directory> dirs = await _getExistingAppDirs();
 
@@ -286,7 +303,9 @@ class _HomePageState extends State<HomePage> {
     return true;
   }
 
+  /// Integrate mods with APK, will take multiple mods and add them to MAS APK
   Future<void> _addMod() async {
+    // clean data dir before trying to add files and folders to it again
     var cleanedDataDir = await _cleanDataDir();
     // todo show error instead of returning immediately
     if (!cleanedDataDir) return;
@@ -297,8 +316,10 @@ class _HomePageState extends State<HomePage> {
 
     print(_selectedMods);
 
+    // this directory is the one that contains all the extracted mod folders in it
     Directory? extractedModsDir;
     for (var file in _selectedMods) {
+      // extract mod from .zip file and save in mod folder
       Directory? extractedMod = await _extractZip(file, "mod/${file.name}");
 
       if (extractedMod == null) return;
@@ -313,6 +334,7 @@ class _HomePageState extends State<HomePage> {
 
     if (_selectedAPK == null) return;
 
+    // extract MAS APK
     Directory? extractedApkDir =
         await _extractZip(_selectedAPK!, "apk/mas.zip");
 
@@ -320,14 +342,15 @@ class _HomePageState extends State<HomePage> {
     if (extractedApkDir == null) return;
     print("APK extracted");
 
-    print("Start renaming mods");
     List<Directory> modDirs = [];
 
+    // add mod FOLDERS to modDirs list, since we'll be messing with them mainly
     for (FileSystemEntity mod in extractedModsDir.listSync()) {
       if (mod is Directory) modDirs.add(mod);
     }
 
     for (Directory mod in modDirs) {
+      // rename all files and folders in current mod folder
       for (FileSystemEntity dir in mod.listSync()) {
         bool renameSuccess = await _recursiveRename(dir);
 
@@ -337,18 +360,21 @@ class _HomePageState extends State<HomePage> {
 
     print("Mod renaming complete");
 
+    // apply mods by copying files to APK dir
     bool applyModSuccess = await _applyModFiles();
 
     if (!applyModSuccess) return;
 
     print("Mods successfully copied");
 
+    // Generate a .zip file from apk directory
     File? masZipped = await _createMASZip();
     if (masZipped == null) return;
     bool wasZipped = await masZipped.exists();
     if (!wasZipped) return;
     print("Zipped!");
 
+    // rename .zip file to .apk
     // ! the below does not produce a valid APK!
     _renameFile("mas.apk", masZipped);
 
@@ -443,7 +469,7 @@ class _HomePageState extends State<HomePage> {
         ),
       ];
 
-  // below is syntax for a function that returns a void function
+  // below is syntax for a function that returns a void function or null
   void Function()? _getNextStep(ControlsDetails details, ColorScheme theme) {
     if (_currentStep == _getSteps(theme).length - 1) return null;
 
