@@ -73,6 +73,40 @@ class _HomePageState extends State<HomePage> {
     return dirs[0];
   }
 
+  /// Will rename a file
+  Future<File> _renameFile(String newName, File file) async {
+    String dir = path.dirname(file.path);
+    String newPath = path.join(dir, newName);
+    return await file.rename(newPath);
+  }
+
+  Future<Directory> _renameFolder(String newName, Directory folder) async {
+    String dir = path.dirname(folder.path);
+    String newPath = path.join(dir, newName);
+    return await folder.rename(newPath);
+  }
+
+  Future<Map<String, Directory>> _getExistingAppDirs() async {
+    final appDir = await _getAppDir();
+    if (appDir == null) return {};
+
+    final tmpDir = Directory("${appDir.path}/tmp");
+
+    // these are the main directories we'll be working with
+    final directories = {
+      'apk': Directory("${tmpDir.path}/apk"),
+      'mod': Directory("${tmpDir.path}/mod"),
+      "tmp": tmpDir,
+    };
+
+    for (Directory dir in directories.values) {
+      final exists = await dir.exists();
+      if (!exists) return {};
+    }
+
+    return directories;
+  }
+
   Future<File?> _saveFilePermanently(PlatformFile file,
       [String? newFileName]) async {
     var appDir = await _getAppDir();
@@ -122,17 +156,27 @@ class _HomePageState extends State<HomePage> {
     return extractFile.parent;
   }
 
-  /// Will rename a file
-  Future<File> _renameFile(String newName, File file) async {
-    String dir = path.dirname(file.path);
-    String newPath = path.join(dir, newName);
-    return await file.rename(newPath);
-  }
+  Future<File?> _createMASZip() async {
+    Map<String, Directory> dirs = await _getExistingAppDirs();
 
-  Future<Directory> _renameFolder(String newName, Directory folder) async {
-    String dir = path.dirname(folder.path);
-    String newPath = path.join(dir, newName);
-    return await folder.rename(newPath);
+    if (dirs.isEmpty) return null;
+
+    Directory? apkDir = dirs["apk"];
+    Directory? tmpDir = dirs["tmp"];
+
+    if (apkDir == null || tmpDir == null) return null;
+
+    String zipFileName = "${tmpDir.path}/mas.zip";
+
+    var encoder = ZipFileEncoder();
+    encoder.zipDirectory(apkDir, filename: zipFileName);
+
+    File zipFile = File(zipFileName);
+    bool zipExists = await zipFile.exists();
+
+    if (!zipExists) return null;
+
+    return zipFile;
   }
 
   Future<bool> _cleanDataDir() async {
@@ -175,26 +219,6 @@ class _HomePageState extends State<HomePage> {
 
     // not sure if I should really be returning true here...
     return true;
-  }
-
-  Future<Map<String, Directory>> _getExistingAppDirs() async {
-    final appDir = await _getAppDir();
-    if (appDir == null) return {};
-
-    final tmpDir = Directory("${appDir.path}/tmp");
-
-    // these are the main directories we'll be working with
-    final directories = {
-      'apk': Directory("${tmpDir.path}/apk"),
-      'mod': Directory("${tmpDir.path}/mod"),
-    };
-
-    for (Directory dir in directories.values) {
-      final exists = await dir.exists();
-      if (!exists) return {};
-    }
-
-    return directories;
   }
 
   Future<void> _copyDir(Directory dir, String location) async {
@@ -318,6 +342,20 @@ class _HomePageState extends State<HomePage> {
     if (!applyModSuccess) return;
 
     print("Mods successfully copied");
+
+    File? masZipped = await _createMASZip();
+    if (masZipped == null) return;
+    bool wasZipped = await masZipped.exists();
+    if (!wasZipped) return;
+    print("Zipped!");
+
+    // ! the below does not produce a valid APK!
+    _renameFile("mas.apk", masZipped);
+
+    print("Done!");
+
+    // ! we're not done yet, we need to move a few stuff to the MAS directory
+    // https://youtu.be/3SnwZwhXnNE?t=695
   }
 
   // NOTE: when releasing the app, make sure to follow the below setup!!!!
