@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -64,11 +65,58 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  Future<File> _saveFilePermanently(PlatformFile file) async {
-    final appStorage = await getApplicationDocumentsDirectory();
-    final newFile = File("${appStorage.path}/${file.name}");
+  Future<File?> _saveFilePermanently(PlatformFile file,
+      [String? newFileName]) async {
+    var dirs = await getExternalStorageDirectories();
+    if (dirs == null || dirs.isEmpty) return null;
+
+    var saveDir = dirs[0];
+    print("Save Dir: ${saveDir.path}");
+
+    final newFile = File("${saveDir.path}/${newFileName ?? file.name}");
 
     return File(file.path!).copy(newFile.path);
+  }
+
+  Future<void> _extractZip() async {
+    if (_selectedAPK == null || _selectedAPK?.path == null) return;
+
+    // print("appStorage: ${appStorage.path}");
+    // below gives similar to /data/user/0/com.weebnetsu.masami/app_flutter
+    // below will rename the file and save it in our app directory
+    var f = await _saveFilePermanently(_selectedAPK!, "mas.zip");
+
+    if (f == null) {
+      print("!!!! SAVE FILE WAS NOT SUCCESSFUL !!!!");
+      return;
+    }
+
+    // Use an InputFileStream to access the zip file without storing it in memory.
+    final inputStream = InputFileStream(f.path);
+    // Decode the zip from the InputFileStream. The archive will have the contents of the
+    // zip, without having stored the data in memory.
+    final archive = ZipDecoder().decodeBuffer(inputStream);
+    // final appStorage = await getApplicationDocumentsDirectory()
+    // await extractFileToDisk(_selectedAPK!.path!, '${appStorage.path}/mod');
+    for (var file in archive.files) {
+      // If it's a file and not a directory
+      if (file.isFile) {
+        // Write the file content to a directory called 'out'.
+        // In practice, you should make sure file.name doesn't include '..' paths
+        // that would put it outside of the extraction directory.
+        // An OutputFileStream will write the data to disk.
+        final outputStream = OutputFileStream('${f.parent.path}/${file.name}');
+        // The writeContent method will decompress the file content directly to disk without
+        // storing the decompressed data in memory.
+        file.writeContent(outputStream);
+        // Make sure to close the output stream so the File is closed.
+        outputStream.close();
+      }
+    }
+  }
+
+  Future<void> _addMod() async {
+    await _extractZip();
   }
 
   // NOTE: when releasing the app, make sure to follow the below setup!!!!
@@ -118,10 +166,10 @@ class _HomePageState extends State<HomePage> {
         Step(
           state: _currentStep > 2 ? StepState.complete : StepState.indexed,
           isActive: _currentStep >= 2,
-          title: const Text("Review Changes"),
+          title: const Text("Add Mods"),
           content: Center(
             child: MaterialButton(
-              onPressed: () => {},
+              onPressed: _addMod,
               color: theme.secondary,
               textColor: Colors.white,
               splashColor: Colors.red,
@@ -136,27 +184,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         Step(
-          state: _currentStep > 3 ? StepState.complete : StepState.indexed,
           isActive: _currentStep >= 3,
-          title: const Text("Wait"),
-          content: Center(
-            child: MaterialButton(
-              onPressed: () => {},
-              color: theme.secondary,
-              textColor: Colors.white,
-              splashColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(3.0),
-              ),
-              child: const Text(
-                "Wait",
-                style: TextStyle(fontSize: 18),
-              ),
-            ),
-          ),
-        ),
-        Step(
-          isActive: _currentStep >= 4,
           title: const Text("Done"),
           content: Center(
             child: MaterialButton(
@@ -168,7 +196,7 @@ class _HomePageState extends State<HomePage> {
                 borderRadius: BorderRadius.circular(3.0),
               ),
               child: const Text(
-                "Add Mod",
+                "Done",
                 style: TextStyle(fontSize: 18),
               ),
             ),
@@ -185,8 +213,10 @@ class _HomePageState extends State<HomePage> {
         if (_selectedAPK != null) return details.onStepContinue;
         break;
       case 1: // if selecting mods
-        if (_selectedMods.isNotEmpty) return details.onStepContinue;
-        break;
+        // todo: uncomment below, it was just commented out for testing
+        // if (_selectedMods.isNotEmpty) return details.onStepContinue;
+        // break;
+        return details.onStepContinue;
       default:
         return null;
     }
