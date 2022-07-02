@@ -155,6 +155,47 @@ class _HomePageState extends State<HomePage> {
     return true;
   }
 
+  Future<bool> _recursiveRename(FileSystemEntity item) async {
+    String curItemName = item.path.split("/").last;
+
+    if (item is File) {
+      await _renameFile("x-$curItemName", item);
+      return true;
+    }
+
+    if (item is Directory) {
+      var newGameDir = await _renameFolder("x-$curItemName", item);
+
+      for (FileSystemEntity innerItem in newGameDir.listSync()) {
+        var renameSuccess = await _recursiveRename(innerItem);
+
+        if (!renameSuccess) return false;
+      }
+    }
+
+    // not sure if I should really be returning true here...
+    return true;
+  }
+
+  Future<bool> _copyModFiles(FileSystemEntity item) async {
+    String curItemName = item.path.split("/").last;
+
+    if (item is File) {
+      return true;
+    }
+
+    if (item is Directory) {
+      if (curItemName == "x-game") {
+        // todo don't copy current folder, only everything inside of it!!
+      }
+
+      return true;
+    }
+
+    // not sure if I should really be returning true here...
+    return true;
+  }
+
   Future<void> _addMod() async {
     var cleanedDataDir = await _cleanDataDir();
     // todo show error instead of returning immediately
@@ -191,21 +232,11 @@ class _HomePageState extends State<HomePage> {
 
     print("Start renaming mods");
     for (FileSystemEntity mod in extractedModsDir.listSync()) {
-      if (mod is Directory) {
-        for (FileSystemEntity modInner in mod.listSync()) {
-          if (modInner is Directory) {
-            var curDirName = modInner.path.split("/").last;
-            switch (curDirName) {
-              case "game":
-                var newDirName = await _renameFolder("x-game", modInner);
-                print(newDirName.path);
-                break;
-              default:
-            }
-          }
-        }
-      }
+      bool renameSuccess = await _recursiveRename(mod);
+
+      if (!renameSuccess) return;
     }
+    print("Mod renaming complete");
   }
 
   // NOTE: when releasing the app, make sure to follow the below setup!!!!
