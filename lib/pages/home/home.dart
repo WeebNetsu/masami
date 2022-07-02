@@ -4,6 +4,7 @@ import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});
@@ -84,13 +85,13 @@ class _HomePageState extends State<HomePage> {
     return File(file.path!).copy(newFile.path);
   }
 
-  Future<bool> _extractZip(
+  Future<Directory?> _extractZip(
       PlatformFile originalFile, String newFileName) async {
     // below gives similar to /data/user/0/com.weebnetsu.masami/app_flutter
     // below will rename the file and save it in our app directory
     var extractFile = await _saveFilePermanently(originalFile, newFileName);
 
-    if (extractFile == null) return false;
+    if (extractFile == null) return null;
 
     // Use an InputFileStream to access the zip file without storing it in memory.
     final inputStream = InputFileStream(extractFile.path);
@@ -118,36 +119,93 @@ class _HomePageState extends State<HomePage> {
 
     await extractFile.delete(recursive: true);
 
+    return extractFile.parent;
+  }
+
+  /// Will rename a file
+  Future<File> _renameFile(String newName, File file) async {
+    String dir = path.dirname(file.path);
+    String newPath = path.join(dir, newName);
+    return await file.rename(newPath);
+  }
+
+  Future<Directory> _renameFolder(String newName, Directory folder) async {
+    String dir = path.dirname(folder.path);
+    String newPath = path.join(dir, newName);
+    return await folder.rename(newPath);
+  }
+
+  Future<bool> _cleanDataDir() async {
+    var appDir = await _getAppDir();
+
+    if (appDir == null) return true;
+
+    final tmpDir = Directory("${appDir.path}/tmp");
+    final tmpDirExists = await tmpDir.exists();
+
+    if (tmpDirExists) {
+      try {
+        await tmpDir.delete(recursive: true);
+        // if it throws an error, directory could not be deleted
+      } catch (e) {
+        return false;
+      }
+    }
+
     return true;
   }
 
   Future<void> _addMod() async {
-    // Directory? appDir = await _getAppDir();
-    // // todo show error instead of returning immediately
-    // if(appDir == null) return;
-
+    var cleanedDataDir = await _cleanDataDir();
     // todo show error instead of returning immediately
-    if (_selectedAPK == null) return;
-    print("Started with modding");
+    if (!cleanedDataDir) return;
 
-    var apkExtracted = await _extractZip(_selectedAPK!, "apk/mas.zip");
-
-    // todo show error instead
-    if (!apkExtracted) return;
-    print("APK extracted");
-
+    // we extract mods first, since there will be more and a higher change of error
+    // todo show error instead of returning immediately
     if (_selectedMods.isEmpty) return;
 
     print(_selectedMods);
 
+    Directory? extractedModsDir;
     for (var file in _selectedMods) {
-      var modExtracted = await _extractZip(file, "mod/${file.name}");
+      Directory? extractedMod = await _extractZip(file, "mod/${file.name}");
 
-      if (!modExtracted) return;
+      if (extractedMod == null) return;
       print("${file.name} extracted");
+
+      extractedModsDir ??= extractedMod;
     }
 
-    print("Files extracted");
+    if (extractedModsDir == null) return;
+
+    print("Mods extracted");
+
+    if (_selectedAPK == null) return;
+
+    Directory? extractedApkDir =
+        await _extractZip(_selectedAPK!, "apk/mas.zip");
+
+    // todo show error instead
+    if (extractedApkDir == null) return;
+    print("APK extracted");
+
+    print("Start renaming mods");
+    for (FileSystemEntity mod in extractedModsDir.listSync()) {
+      if (mod is Directory) {
+        for (FileSystemEntity modInner in mod.listSync()) {
+          if (modInner is Directory) {
+            var curDirName = modInner.path.split("/").last;
+            switch (curDirName) {
+              case "game":
+                var newDirName = await _renameFolder("x-game", modInner);
+                print(newDirName.path);
+                break;
+              default:
+            }
+          }
+        }
+      }
+    }
   }
 
   // NOTE: when releasing the app, make sure to follow the below setup!!!!
