@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:masami/utils/progress.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 
@@ -19,6 +20,7 @@ class _HomePageState extends State<HomePage> {
   int _currentStep = 0;
   PlatformFile? _selectedAPK;
   List<PlatformFile> _selectedMods = [];
+  Progress? _modApplyProgress;
 
   /// Will open the file picker to select an APK.\
   void _selectAPK() async {
@@ -305,11 +307,21 @@ class _HomePageState extends State<HomePage> {
 
   /// Integrate mods with APK, will take multiple mods and add them to MAS APK
   Future<void> _addMod() async {
+    setState(() {
+      _modApplyProgress = Progress(6, "Cleaing data directory");
+    });
+
+    // step 1
     // clean data dir before trying to add files and folders to it again
     var cleanedDataDir = await _cleanDataDir();
     // todo show error instead of returning immediately
     if (!cleanedDataDir) return;
 
+    setState(() {
+      _modApplyProgress?.increaseProgress("Extracting mods");
+    });
+
+    // step 2
     // we extract mods first, since there will be more and a higher change of error
     // todo show error instead of returning immediately
     if (_selectedMods.isEmpty) return;
@@ -332,6 +344,11 @@ class _HomePageState extends State<HomePage> {
 
     print("Mods extracted");
 
+    setState(() {
+      _modApplyProgress?.increaseProgress("Extracting APK");
+    });
+
+    // step 3
     if (_selectedAPK == null) return;
 
     // extract MAS APK
@@ -342,6 +359,11 @@ class _HomePageState extends State<HomePage> {
     if (extractedApkDir == null) return;
     print("APK extracted");
 
+    setState(() {
+      _modApplyProgress?.increaseProgress("Renaming mods");
+    });
+
+    // step 4
     List<Directory> modDirs = [];
 
     // add mod FOLDERS to modDirs list, since we'll be messing with them mainly
@@ -360,6 +382,11 @@ class _HomePageState extends State<HomePage> {
 
     print("Mod renaming complete");
 
+    setState(() {
+      _modApplyProgress?.increaseProgress("Copying mods to APK");
+    });
+
+    // step 5
     // apply mods by copying files to APK dir
     bool applyModSuccess = await _applyModFiles();
 
@@ -367,6 +394,11 @@ class _HomePageState extends State<HomePage> {
 
     print("Mods successfully copied");
 
+    setState(() {
+      _modApplyProgress?.increaseProgress("Zipping MAS APK");
+    });
+
+    // step 6
     // Generate a .zip file from apk directory
     File? masZipped = await _createMASZip();
     if (masZipped == null) return;
@@ -380,7 +412,12 @@ class _HomePageState extends State<HomePage> {
 
     print("Done!");
 
-    // ! we're not done yet, we need to move a few stuff to the MAS directory
+    setState(() {
+      _modApplyProgress?.increaseProgress("Done!");
+    });
+
+    // we need to move gifts stuff to the MAS directory
+    // this is an optional feature we can add
     // https://youtu.be/3SnwZwhXnNE?t=695
   }
 
@@ -432,20 +469,45 @@ class _HomePageState extends State<HomePage> {
           state: _currentStep > 2 ? StepState.complete : StepState.indexed,
           isActive: _currentStep >= 2,
           title: const Text("Add Mods"),
-          content: Center(
-            child: MaterialButton(
-              onPressed: _addMod,
-              color: theme.secondary,
-              textColor: Colors.white,
-              splashColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(3.0),
+          content: Column(
+            children: [
+              Center(
+                child: MaterialButton(
+                  onPressed: _addMod,
+                  color: theme.secondary,
+                  textColor: Colors.white,
+                  splashColor: Colors.red,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(3.0),
+                  ),
+                  child: const Text(
+                    "Add Mod",
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ),
               ),
-              child: const Text(
-                "Add Mod",
-                style: TextStyle(fontSize: 18),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: SizedBox(
+                  height: 18,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      LinearProgressIndicator(
+                        // below only works with values between 0 and 1
+                        value: getProgressValue(),
+                        // valueColor: AlwaysStoppedAnimation(Colors.red),
+                        backgroundColor: Colors.grey,
+                      ),
+                      Center(
+                        child: Text(_modApplyProgress?.getCurrentStep() ??
+                            "Press the button!"),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
         Step(
@@ -478,14 +540,32 @@ class _HomePageState extends State<HomePage> {
         if (_selectedAPK != null) return details.onStepContinue;
         break;
       case 1: // if selecting mods
-        // todo: uncomment below, it was just commented out for testing
         if (_selectedMods.isNotEmpty) return details.onStepContinue;
+        break;
+      case 2: // if adding mods
+        if (_modApplyProgress == null) return null;
+
+        if (_selectedMods.isNotEmpty &&
+            _modApplyProgress!.getProgressComplete()) {
+          return details.onStepContinue;
+        }
         break;
       default:
         return null;
     }
 
     return null;
+  }
+
+  double getProgressValue() {
+    if (_modApplyProgress == null) return 0;
+
+    double progress = _modApplyProgress!.getProgress();
+    if (progress == 0) return 0;
+
+    progress = _modApplyProgress!.getProgress() / 100;
+
+    return double.parse(progress.toStringAsFixed(2));
   }
 
   @override
@@ -496,66 +576,71 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: Stepper(
-        // type: StepperType.horizontal,
-        steps: _getSteps(theme),
-        currentStep: _currentStep,
-        onStepContinue: () => setState(() {
-          _currentStep++;
-        }),
-        onStepCancel: () => setState(() {
-          _currentStep--;
-        }),
-        controlsBuilder: (BuildContext context, ControlsDetails details) {
-          return Row(
-            children: <Widget>[
-              const SizedBox(
-                height: 60,
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: MaterialButton(
-                    // if the last step don't allow continue
-                    onPressed: _getNextStep(details, theme),
-                    color: theme.secondary,
-                    textColor: Colors.white,
-                    splashColor: Colors.red,
-                    disabledColor: Colors.grey,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3.0),
-                    ),
-                    child: const Text(
-                      "Next",
-                      style: TextStyle(fontSize: 18),
+      body: Column(
+        children: [
+          Stepper(
+            // type: StepperType.horizontal,
+            steps: _getSteps(theme),
+            currentStep: _currentStep,
+            onStepContinue: () => setState(() {
+              _currentStep++;
+            }),
+            onStepCancel: () => setState(() {
+              _currentStep--;
+            }),
+            controlsBuilder: (BuildContext context, ControlsDetails details) {
+              return Row(
+                children: <Widget>[
+                  const SizedBox(
+                    height: 60,
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: MaterialButton(
+                        // if the last step don't allow continue
+                        onPressed: _getNextStep(details, theme),
+                        color: theme.secondary,
+                        textColor: Colors.white,
+                        splashColor: Colors.red,
+                        disabledColor: Colors.grey,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(3.0),
+                        ),
+                        child: const Text(
+                          "Next",
+                          style: TextStyle(fontSize: 18),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              // if (_currentStep != 0)
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: MaterialButton(
-                    // if the first step, don't allow cancel
-                    onPressed: _currentStep < 1 ? null : details.onStepCancel,
-                    color: theme.secondary,
-                    textColor: Colors.white,
-                    splashColor: Colors.red,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3.0),
-                    ),
-                    disabledColor: Colors.grey,
-                    child: const Text(
-                      "Back",
-                      style: TextStyle(fontSize: 18),
+                  // if (_currentStep != 0)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: MaterialButton(
+                        // if the first step, don't allow cancel
+                        onPressed:
+                            _currentStep < 1 ? null : details.onStepCancel,
+                        color: theme.secondary,
+                        textColor: Colors.white,
+                        splashColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(3.0),
+                        ),
+                        disabledColor: Colors.grey,
+                        child: const Text(
+                          "Back",
+                          style: TextStyle(fontSize: 18),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            ],
-          );
-        },
+                ],
+              );
+            },
+          ),
+        ],
       ),
     );
   }

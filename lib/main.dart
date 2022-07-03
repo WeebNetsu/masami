@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:masami/pages/home/home.dart';
+import 'package:masami/ui/pages/home/home.dart';
 
 void main() {
   runApp(const MyApp());
