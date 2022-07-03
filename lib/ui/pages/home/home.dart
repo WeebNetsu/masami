@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:masami/utils/progress.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'package:url_launcher/url_launcher.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});
@@ -21,9 +22,22 @@ class _HomePageState extends State<HomePage> {
   PlatformFile? _selectedAPK;
   List<PlatformFile> _selectedMods = [];
   Progress? _modApplyProgress;
+  final Uri _telegramBotUrl = Uri.parse('https://t.me/Copyrighted_bot');
+  final Uri _masDiscordChatUrl = Uri.parse('https://discord.gg/XjfgvnCvYM');
+  bool _loadingData = false;
+  String? _pathToApk;
+
+  Future<void> _openUrl(Uri url) async {
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
+  }
 
   /// Will open the file picker to select an APK.\
   void _selectAPK() async {
+    setState(() {
+      _loadingData = true;
+    });
     // below video contains a lot of useful tips!! Such as
     // https://youtu.be/LlO5jydXws0
     // if you want to allow multiple files to be chosen, then
@@ -41,6 +55,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       // result.files.first = only choose the first selected file
       _selectedAPK = result.files.first;
+      _loadingData = false;
     });
 
     // easily get file info
@@ -57,6 +72,10 @@ class _HomePageState extends State<HomePage> {
 
   /// Will open the file picker to select the MODS. All mods has to be of type .zip
   void _selectMods() async {
+    setState(() {
+      _loadingData = true;
+    });
+
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -67,6 +86,7 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {
       _selectedMods = result.files;
+      _loadingData = false;
     });
   }
 
@@ -308,6 +328,7 @@ class _HomePageState extends State<HomePage> {
   /// Integrate mods with APK, will take multiple mods and add them to MAS APK
   Future<void> _addMod() async {
     setState(() {
+      _loadingData = true;
       _modApplyProgress = Progress(6, "Cleaing data directory");
     });
 
@@ -352,6 +373,7 @@ class _HomePageState extends State<HomePage> {
     if (_selectedAPK == null) return;
 
     // extract MAS APK
+    // ! Unhandled Exception: FormatException: Invalid Zip Signature?
     Directory? extractedApkDir =
         await _extractZip(_selectedAPK!, "apk/mas.zip");
 
@@ -412,8 +434,12 @@ class _HomePageState extends State<HomePage> {
 
     print("Done!");
 
+    Directory? appDir = await _getAppDir();
+
     setState(() {
+      _pathToApk = appDir?.path;
       _modApplyProgress?.increaseProgress("Done!");
+      _loadingData = false;
     });
 
     // we need to move gifts stuff to the MAS directory
@@ -429,19 +455,39 @@ class _HomePageState extends State<HomePage> {
           isActive: _currentStep >= 0,
           title: const Text("Select APK"),
           content: Center(
-            child: MaterialButton(
-              // when using async, => is not required
-              onPressed: _selectAPK,
-              color: theme.secondary,
-              textColor: Colors.white,
-              splashColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(3.0),
-              ),
-              child: const Text(
-                "Select MAS APK File",
-                style: TextStyle(fontSize: 18),
-              ),
+            child: Column(
+              children: [
+                const Text(
+                    "Select the Monika After Story .apk file. This APK has to be from the developer \"ale4ever\", and can be obtained from"),
+                TextButton(
+                  onPressed: () async {
+                    await _openUrl(_masDiscordChatUrl);
+                  },
+                  child: const Text("Discord"),
+                ),
+                const Text("or"),
+                TextButton(
+                  onPressed: () async {
+                    await _openUrl(_telegramBotUrl);
+                  },
+                  child: const Text("Telegram"),
+                ),
+                if (_loadingData) const CircularProgressIndicator(),
+                MaterialButton(
+                  // when using async, => is not required
+                  onPressed: !_loadingData ? _selectAPK : null,
+                  color: theme.secondary,
+                  textColor: Colors.white,
+                  splashColor: Colors.red,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(3.0),
+                  ),
+                  child: const Text(
+                    "Select MAS APK File",
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -450,30 +496,13 @@ class _HomePageState extends State<HomePage> {
           isActive: _currentStep >= 1,
           title: const Text("Select Mods"),
           content: Center(
-            child: MaterialButton(
-              onPressed: _selectMods,
-              color: theme.secondary,
-              textColor: Colors.white,
-              splashColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(3.0),
-              ),
-              child: const Text(
-                "Select Mod Files",
-                style: TextStyle(fontSize: 18),
-              ),
-            ),
-          ),
-        ),
-        Step(
-          state: _currentStep > 2 ? StepState.complete : StepState.indexed,
-          isActive: _currentStep >= 2,
-          title: const Text("Add Mods"),
-          content: Column(
-            children: [
-              Center(
-                child: MaterialButton(
-                  onPressed: _addMod,
+            child: Column(
+              children: [
+                const Text(
+                    "Select the mods (only .zip files) you want to apply"),
+                if (_loadingData) const CircularProgressIndicator(),
+                MaterialButton(
+                  onPressed: _loadingData ? null : _selectMods,
                   color: theme.secondary,
                   textColor: Colors.white,
                   splashColor: Colors.red,
@@ -481,51 +510,112 @@ class _HomePageState extends State<HomePage> {
                     borderRadius: BorderRadius.circular(3.0),
                   ),
                   child: const Text(
-                    "Add Mod",
+                    "Select Mod Files",
                     style: TextStyle(fontSize: 18),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: SizedBox(
-                  height: 18,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      LinearProgressIndicator(
-                        // below only works with values between 0 and 1
-                        value: getProgressValue(),
-                        // valueColor: AlwaysStoppedAnimation(Colors.red),
-                        backgroundColor: Colors.grey,
+              ],
+            ),
+          ),
+        ),
+        Step(
+          state: _currentStep > 2 ? StepState.complete : StepState.indexed,
+          isActive: _currentStep >= 2,
+          title: const Text("Add Mods"),
+          content: Center(
+            child: Column(
+              children: [
+                Column(
+                  children: [
+                    const Text("Review data before continue:"),
+                    const Text("APK:"),
+                    Text(
+                      _selectedAPK?.name == null
+                          ? 'No APK??'
+                          : _selectedAPK!.name.length > 30
+                              ? "${_selectedAPK!.name.substring(0, 30)}..."
+                              : _selectedAPK!.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
                       ),
-                      Center(
-                        child: Text(_modApplyProgress?.getCurrentStep() ??
-                            "Press the button!"),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text("Mods:"),
+                    Text(
+                      _selectedMods
+                          .map((mod) => mod.name.length > 30
+                              ? "${mod.name.substring(0, 30)}..."
+                              : mod.name)
+                          .join("\n\n"),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
                       ),
-                    ],
+                    ),
+                    const SizedBox(height: 10),
+                    MaterialButton(
+                      onPressed: _loadingData ? null : _addMod,
+                      color: theme.secondary,
+                      textColor: Colors.white,
+                      splashColor: Colors.red,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(3.0),
+                      ),
+                      child: const Text(
+                        "Add Mods",
+                        style: TextStyle(fontSize: 18),
+                      ),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: SizedBox(
+                    height: 18,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        LinearProgressIndicator(
+                          // below only works with values between 0 and 1
+                          value: getProgressValue(),
+                          // valueColor: AlwaysStoppedAnimation(Colors.red),
+                          backgroundColor: Colors.grey,
+                        ),
+                        Center(
+                          child: Text(_modApplyProgress?.getCurrentStep() ??
+                              "Press the button!"),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         Step(
           isActive: _currentStep >= 3,
           title: const Text("Done"),
           content: Center(
-            child: MaterialButton(
-              onPressed: () => {},
-              color: theme.secondary,
-              textColor: Colors.white,
-              splashColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(3.0),
-              ),
-              child: const Text(
-                "Done",
-                style: TextStyle(fontSize: 18),
-              ),
+            child: Column(
+              children: [
+                Text(
+                    "The process has been completed. You can now sign the .apk file in ${_pathToApk ?? "N/A"}. You need to sign the file with ZipSigner.\n"),
+                const Text(
+                    "After signing the APK, you can install the game! Adding custom gifts has to happen inside the mas game folder.\n"),
+                MaterialButton(
+                  onPressed: () => {},
+                  color: theme.secondary,
+                  textColor: Colors.white,
+                  splashColor: Colors.red,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(3.0),
+                  ),
+                  child: const Text(
+                    "Done",
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -576,9 +666,11 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: Column(
+      body: ListView(
         children: [
           Stepper(
+            // allow ListView to work with Stepper
+            physics: const ClampingScrollPhysics(),
             // type: StepperType.horizontal,
             steps: _getSteps(theme),
             currentStep: _currentStep,
@@ -599,7 +691,8 @@ class _HomePageState extends State<HomePage> {
                       padding: const EdgeInsets.all(8.0),
                       child: MaterialButton(
                         // if the last step don't allow continue
-                        onPressed: _getNextStep(details, theme),
+                        onPressed:
+                            !_loadingData ? _getNextStep(details, theme) : null,
                         color: theme.secondary,
                         textColor: Colors.white,
                         splashColor: Colors.red,
@@ -620,8 +713,9 @@ class _HomePageState extends State<HomePage> {
                       padding: const EdgeInsets.all(8.0),
                       child: MaterialButton(
                         // if the first step, don't allow cancel
-                        onPressed:
-                            _currentStep < 1 ? null : details.onStepCancel,
+                        onPressed: _currentStep < 1 || _loadingData
+                            ? null
+                            : details.onStepCancel,
                         color: theme.secondary,
                         textColor: Colors.white,
                         splashColor: Colors.red,

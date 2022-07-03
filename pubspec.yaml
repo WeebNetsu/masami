@@ -44,6 +44,7 @@ dependencies:
   # to zip/unzip files
   archive: ^3.3.0
   path: ^1.8.2
+  url_launcher: ^6.1.4
 
 dev_dependencies:
   flutter_test:
