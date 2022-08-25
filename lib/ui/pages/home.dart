@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:masami/utils/progress.dart';
+import 'package:masami/models/progress.dart';
+import 'package:masami/utils/views.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:url_launcher/url_launcher.dart';
@@ -32,6 +33,9 @@ class _HomePageState extends State<HomePage> {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     }
   }
+
+// since context doesn't like to be used in async
+  void displayError(String text) => showError(context, text);
 
   /// Will open the file picker to select an APK.\
   void _selectAPK() async {
@@ -335,8 +339,15 @@ class _HomePageState extends State<HomePage> {
     // step 1
     // clean data dir before trying to add files and folders to it again
     var cleanedDataDir = await _cleanDataDir();
-    // todo show error instead of returning immediately
-    if (!cleanedDataDir) return;
+    if (!cleanedDataDir) {
+      displayError("Could not clean data folder");
+
+      setState(() {
+        _loadingData = false;
+      });
+
+      return;
+    }
 
     setState(() {
       _modApplyProgress?.increaseProgress("Extracting mods");
@@ -344,10 +355,15 @@ class _HomePageState extends State<HomePage> {
 
     // step 2
     // we extract mods first, since there will be more and a higher change of error
-    // todo show error instead of returning immediately
-    if (_selectedMods.isEmpty) return;
+    if (_selectedMods.isEmpty) {
+      displayError("No mods were provided");
 
-    print(_selectedMods);
+      setState(() {
+        _loadingData = false;
+      });
+
+      return;
+    }
 
     // this directory is the one that contains all the extracted mod folders in it
     Directory? extractedModsDir;
@@ -356,14 +372,12 @@ class _HomePageState extends State<HomePage> {
       Directory? extractedMod = await _extractZip(file, "mod/${file.name}");
 
       if (extractedMod == null) return;
-      print("${file.name} extracted");
+      // print("${file.name} extracted");
 
       extractedModsDir ??= extractedMod;
     }
 
     if (extractedModsDir == null) return;
-
-    print("Mods extracted");
 
     setState(() {
       _modApplyProgress?.increaseProgress("Extracting APK");
@@ -377,9 +391,15 @@ class _HomePageState extends State<HomePage> {
     Directory? extractedApkDir =
         await _extractZip(_selectedAPK!, "apk/mas.zip");
 
-    // todo show error instead
-    if (extractedApkDir == null) return;
-    print("APK extracted");
+    if (extractedApkDir == null) {
+      displayError("Could not find extracted apk folder");
+
+      setState(() {
+        _loadingData = false;
+      });
+
+      return;
+    }
 
     setState(() {
       _modApplyProgress?.increaseProgress("Renaming mods");
@@ -402,8 +422,6 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    print("Mod renaming complete");
-
     setState(() {
       _modApplyProgress?.increaseProgress("Copying mods to APK");
     });
@@ -413,8 +431,6 @@ class _HomePageState extends State<HomePage> {
     bool applyModSuccess = await _applyModFiles();
 
     if (!applyModSuccess) return;
-
-    print("Mods successfully copied");
 
     setState(() {
       _modApplyProgress?.increaseProgress("Zipping MAS APK");
@@ -426,13 +442,10 @@ class _HomePageState extends State<HomePage> {
     if (masZipped == null) return;
     bool wasZipped = await masZipped.exists();
     if (!wasZipped) return;
-    print("Zipped!");
 
     // rename .zip file to .apk
     // ! the below does not produce a valid APK!
     _renameFile("mas.apk", masZipped);
-
-    print("Done!");
 
     Directory? appDir = await _getAppDir();
 
@@ -603,7 +616,18 @@ class _HomePageState extends State<HomePage> {
                 const Text(
                     "After signing the APK, you can install the game! Adding custom gifts has to happen inside the mas game folder.\n"),
                 MaterialButton(
-                  onPressed: () => {},
+                  onPressed: () => {
+                    setState(
+                      () {
+                        _currentStep = 0;
+                        _selectedAPK = null;
+                        _selectedMods = [];
+                        _modApplyProgress = null;
+                        _loadingData = false;
+                        _pathToApk = null;
+                      },
+                    )
+                  },
                   color: theme.secondary,
                   textColor: Colors.white,
                   splashColor: Colors.red,
