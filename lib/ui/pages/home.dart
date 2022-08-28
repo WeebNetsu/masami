@@ -650,6 +650,9 @@ class _HomePageState extends State<HomePage> {
                       " in the app home folder.",
                     ),
                     const SizedBox(height: 10),
+                    ..._selectedCustomGifts
+                        .map((gift) => Text(gift.name))
+                        .toList(),
                     MaterialButton(
                       onPressed: _loadingData ? null : _selectCustomGifts,
                       color: theme.secondary,
