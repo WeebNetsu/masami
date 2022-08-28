@@ -19,7 +19,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _currentStep = 0;
+  /// The current step our stepper is on
+  int _currentStep = 3;
   PlatformFile? _selectedAPK;
   List<PlatformFile> _selectedMods = [];
   Progress? _modApplyProgress;
@@ -27,6 +28,7 @@ class _HomePageState extends State<HomePage> {
   final Uri _masDiscordChatUrl = Uri.parse('https://discord.gg/XjfgvnCvYM');
   bool _loadingData = false;
   String? _pathToApk;
+  List<PlatformFile> _selectedCustomGifts = [];
 
   Future<void> _openUrl(Uri url) async {
     if (await canLaunchUrl(url)) {
@@ -53,12 +55,11 @@ class _HomePageState extends State<HomePage> {
       allowedExtensions: ["apk"],
     );
 
-    // if no file was chosen
-    if (result == null) return;
-
     setState(() {
       // result.files.first = only choose the first selected file
-      _selectedAPK = result.files.first;
+      // if file was chosen
+      if (result != null) _selectedAPK = result.files.first;
+
       _loadingData = false;
     });
 
@@ -72,6 +73,35 @@ class _HomePageState extends State<HomePage> {
     // by default, if app is deleted or restarted then
     // cache file is too
     // print("Path: ${file.path}");
+  }
+
+  void _selectCustomGifts() async {
+    // todo still incomplete
+    setState(() {
+      _loadingData = true;
+    });
+
+    final appDir = await _getAppDir();
+
+    if (appDir == null) {
+      displayError("Could not get app folder.");
+
+      setState(() {
+        _loadingData = false;
+      });
+
+      return;
+    }
+
+    final result = await FilePicker.platform.pickFiles(type: FileType.any);
+
+    setState(() {
+      // result.files.first = only choose the first selected file
+      // if file was chosen
+      if (result != null) _selectedCustomGifts.addAll(result.files);
+
+      _loadingData = false;
+    });
   }
 
   /// Will open the file picker to select the MODS. All mods has to be of type .zip
@@ -606,15 +636,53 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         Step(
+          state: _currentStep > 3 ? StepState.complete : StepState.indexed,
           isActive: _currentStep >= 3,
+          title: const Text("Apply Gifts"),
+          content: Center(
+            child: Column(
+              children: [
+                Column(
+                  children: [
+                    const Text(
+                      "If you are trying to add custom gifts, you need to select"
+                      "all the gifts to add. This is an optional step. Extracted gifts can be found"
+                      " in the app home folder.",
+                    ),
+                    const SizedBox(height: 10),
+                    MaterialButton(
+                      onPressed: _loadingData ? null : _selectCustomGifts,
+                      color: theme.secondary,
+                      textColor: Colors.white,
+                      splashColor: Colors.red,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(3.0),
+                      ),
+                      child: const Text(
+                        "Select Gifts",
+                        style: TextStyle(fontSize: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        Step(
+          isActive: _currentStep >= 4,
           title: const Text("Done"),
           content: Center(
             child: Column(
               children: [
                 Text(
-                    "The process has been completed. You can now sign the .apk file in ${_pathToApk ?? "N/A"}. You need to sign the file with ZipSigner.\n"),
+                  "The process has been completed. You can now sign the .apk file in ${_pathToApk ?? "N/A"}. "
+                  "You need to sign the file with ZipSigner.\n",
+                ),
                 const Text(
-                    "After signing the APK, you can install the game! Adding custom gifts has to happen inside the mas game folder.\n"),
+                  "After signing the APK, you can install the game! Adding custom gifts has to happen inside "
+                  "the mas game folder.\n",
+                ),
                 MaterialButton(
                   onPressed: () => {
                     setState(
@@ -645,7 +713,7 @@ class _HomePageState extends State<HomePage> {
         ),
       ];
 
-  // below is syntax for a function that returns a void function or null
+  /// Get next step in progress
   void Function()? _getNextStep(ControlsDetails details, ColorScheme theme) {
     if (_currentStep == _getSteps(theme).length - 1) return null;
 
@@ -664,6 +732,8 @@ class _HomePageState extends State<HomePage> {
           return details.onStepContinue;
         }
         break;
+      case 3: // if applying gifts
+        return details.onStepContinue;
       default:
         return null;
     }
@@ -671,6 +741,7 @@ class _HomePageState extends State<HomePage> {
     return null;
   }
 
+  /// Get current progress from _modApplyProgress
   double getProgressValue() {
     if (_modApplyProgress == null) return 0;
 
@@ -689,6 +760,14 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
+        actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.pushNamed(context, "/help");
+            },
+            icon: const Icon(Icons.help),
+          ),
+        ],
       ),
       body: ListView(
         children: [

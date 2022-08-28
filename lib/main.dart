@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:masami/ui/pages/home.dart';
+import 'package:masami/routes.dart';
 
 void main() {
   runApp(const MyApp());
@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
               secondary: const Color(0xFFEB85AD),
             ),
       ),
-      home: const HomePage(title: 'MAS Mod Installer'),
+      routes: routes,
     );
   }
 }
