@@ -20,7 +20,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   /// The current step our stepper is on
-  int _currentStep = 3;
+  int _currentStep = 0;
   PlatformFile? _selectedAPK;
   List<PlatformFile> _selectedMods = [];
   Progress? _modApplyProgress;
