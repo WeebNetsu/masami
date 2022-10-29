@@ -110,7 +110,16 @@ class _HelpPageState extends State<HelpPage> {
 
                 // --- STEP 4 ---
                 const PaddedText(
-                  "Step 4 - TODO",
+                  "Step 4 - Signing the APK",
+                  style: TextStyle(fontSize: 20),
+                ),
+                const PaddedText(
+                  "To sign the APK, you need to get ZipSigner. You can either find it on Google or get it from the Telegram bot"
+                  ". You'll get it along with the MAS game, by selecting the /zip_signer option. Just download and install the apk",
+                ),
+                // --- STEP 5 ---
+                const PaddedText(
+                  "Step 5 - Backup MAS",
                   style: TextStyle(fontSize: 20),
                 ),
               ],

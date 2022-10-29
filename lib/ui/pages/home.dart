@@ -18,7 +18,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   /// The current step our stepper is on, starts at 0, not 1
-  int _currentStep = 3;
+  int _currentStep = 0;
   PlatformFile? _selectedAPK;
   List<PlatformFile> _selectedMods = [];
   Progress? _modApplyProgress;
@@ -26,7 +26,7 @@ class _HomePageState extends State<HomePage> {
   final Uri _masDiscordChatUrl = Uri.parse('https://discord.gg/XjfgvnCvYM');
   bool _loadingData = false;
   String? _pathToApk;
-  List<PlatformFile> _selectedCustomGifts = [];
+  // List<PlatformFile> _selectedCustomGifts = [];
 
   // since context doesn't like to be used in async
   void displayError(String text) => showError(context, text);
@@ -68,7 +68,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   /// Select gifts to add to game
-  void _selectCustomGifts() async {
+  /* void _selectCustomGifts() async {
     // todo still incomplete
     setState(() {
       _loadingData = true;
@@ -96,9 +96,9 @@ class _HomePageState extends State<HomePage> {
 
       _loadingData = false;
     });
-  }
+  } */
 
-  void _applyCustomGifts() async {
+  /* void _applyCustomGifts() async {
     // todo still incomplete
     // what we could do is we could copy the com.ddlc.mas folder to our app dir
     // then we can just tell the user to move the file to Android/data to apply the changes
@@ -119,7 +119,6 @@ class _HomePageState extends State<HomePage> {
     }
 
     var f = File("${appDir.parent.parent}/com.ddlc.mas/added.txt");
-    print(f);
     setState(() {
       // result.files.first = only choose the first selected file
       // if file was chosen
@@ -127,7 +126,7 @@ class _HomePageState extends State<HomePage> {
 
       _loadingData = false;
     });
-  }
+  } */
 
   /// Will open the file picker to select the MODS. All mods has to be of type .zip
   void _selectMods() async {
@@ -354,9 +353,11 @@ class _HomePageState extends State<HomePage> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(3.0),
                   ),
-                  child: const Text(
-                    "Select MAS APK File",
-                    style: TextStyle(fontSize: 18),
+                  child: Text(
+                    _selectedAPK != null
+                        ? _selectedAPK!.name
+                        : "Select MAS APK File",
+                    style: const TextStyle(fontSize: 18),
                   ),
                 ),
               ],
@@ -371,7 +372,8 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               children: [
                 const Text(
-                    "Select the mods (only .zip files) you want to apply"),
+                  "Select the mods (only .zip files) you want to apply",
+                ),
                 if (_loadingData) const CircularProgressIndicator(),
                 MaterialButton(
                   onPressed: _loadingData ? null : _selectMods,
@@ -381,9 +383,11 @@ class _HomePageState extends State<HomePage> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(3.0),
                   ),
-                  child: const Text(
-                    "Select Mod Files",
-                    style: TextStyle(fontSize: 18),
+                  child: Text(
+                    _selectedMods.isNotEmpty
+                        ? "${_selectedMods.length} Selected"
+                        : "Select Mod Files",
+                    style: const TextStyle(fontSize: 18),
                   ),
                 ),
               ],
@@ -464,7 +468,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        Step(
+        /* Step(
           state: _currentStep > 3 ? StepState.complete : StepState.indexed,
           isActive: _currentStep >= 3,
           title: const Text("Apply Gifts"),
@@ -513,9 +517,9 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
-        ),
+        ), */
         Step(
-          isActive: _currentStep >= 4,
+          isActive: _currentStep >= 3,
           title: const Text("Done"),
           content: Center(
             child: Column(

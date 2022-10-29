@@ -69,17 +69,30 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
+  # these are all in order, as to make it easier to keep track in what order
+  # to display on the help page
   assets:
     - assets/images/steps/step_1/step_1.png
     - assets/images/steps/step_1/downloads_folder.png
     - assets/images/steps/step_1/open_from.png
+    # step 2
     - assets/images/steps/step_2/step_2.png
     - assets/images/steps/step_2/downloads_folder.png
     - assets/images/steps/step_2/selected_block_view.png
     - assets/images/steps/step_2/selected_list_view.png
+    # step 3
     - assets/images/steps/step_3/step_3.png
     - assets/images/steps/step_3/extracting_apk.png
     - assets/images/steps/step_3/done.png
+    # step 4
+    - assets/images/steps/step_4/get_zip_signer.png
+    - assets/images/steps/step_4/install_zip_signer.png
+    - assets/images/steps/step_4/opened_zip_signer.png
+    - assets/images/steps/step_4/choose_apk_zip_signer.png
+    - assets/images/steps/step_4/choose_apk_zip_signer_2.png
+    - assets/images/steps/step_4/output_file_zip_signer.png
+    - assets/images/steps/step_4/signing_zip_signer.png
+    - assets/images/steps/step_4/signing_zip_signer.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
