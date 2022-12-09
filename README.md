@@ -8,7 +8,7 @@ This app was created specifically to make the process of installing mods on MAS 
 
 ## Community
 
-You can either go to the [Discussions](https://github.com/WeebNetsu/masami/discussions) tab or to the [Discord](https://discord.gg/zAC5KwZkUq).
+You can either go to the [Discussions](https://github.com/WeebNetsu/masami/discussions) tab or to the [MASAMI Discord](https://discord.gg/zAC5KwZkUq).
 
 ## Contributing
 
@@ -16,7 +16,7 @@ If you know any Dart/Flutter, feel free to contribute to the code, I am a sole d
 
 ## FAQs
 
-NOTE: Any questions or requests for the **Monika After Story** game should PLEASE be directed to the [Discord](https://discord.gg/XjfgvnCvYM)!
+NOTE: Any questions or requests for the **Monika After Story** game should PLEASE be directed to the [MAS Discord](https://discord.gg/XjfgvnCvYM)!
 
 **Q. Will you add iOS support?**
 _A. No_
