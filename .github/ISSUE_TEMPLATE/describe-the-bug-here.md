@@ -1,10 +1,9 @@
 ---
-name: Describe the bug here
+name: I want to report a bug
 about: Create a report to help us improve MASAMI!
-title: ''
+title: ""
 labels: bug
-assignees: ''
-
+assignees: ""
 ---
 
 <!--
